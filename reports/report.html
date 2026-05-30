@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CPS Smart Grid Simulation Report</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 16mm 14mm;
+      @bottom-right { content: "Page " counter(page) " / " counter(pages); color: #7b8190; font-size: 9px; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      color: #17202a;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      font-size: 10.2px;
+      line-height: 1.45;
+      margin: 0;
+    }
+    .cover {
+      border-bottom: 3px solid #1f6f78;
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+    }
+    .eyebrow {
+      color: #1f6f78;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    h1 {
+      color: #121826;
+      font-size: 27px;
+      line-height: 1.05;
+      margin: 7px 0 8px;
+    }
+    h2 {
+      border-bottom: 1px solid #d9dee8;
+      color: #1f2d3d;
+      font-size: 15px;
+      margin: 18px 0 8px;
+      padding-bottom: 4px;
+    }
+    h3 {
+      color: #1f2d3d;
+      font-size: 12px;
+      margin: 12px 0 6px;
+    }
+    p { margin: 5px 0 8px; }
+    .meta {
+      color: #4f5d75;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .meta div, .metric {
+      background: #f5f7fa;
+      border: 1px solid #e1e7ef;
+      border-radius: 6px;
+      padding: 8px;
+    }
+    .label {
+      color: #687385;
+      display: block;
+      font-size: 8px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .value {
+      color: #17202a;
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 10px 0 12px;
+    }
+    table {
+      border-collapse: collapse;
+      margin: 7px 0 12px;
+      width: 100%;
+    }
+    th {
+      background: #1f6f78;
+      color: white;
+      font-size: 8.8px;
+      padding: 5px 6px;
+      text-align: left;
+    }
+    td {
+      border-bottom: 1px solid #e7ebf1;
+      font-size: 8.7px;
+      padding: 4px 6px;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .page-break { break-before: page; }
+    .note {
+      background: #fff7ed;
+      border-left: 4px solid #e76f51;
+      padding: 8px 10px;
+    }
+    .chart {
+      border: 1px solid #e1e7ef;
+      border-radius: 6px;
+      margin-top: 8px;
+      padding: 8px;
+      width: 100%;
+    }
+    code {
+      background: #eef2f7;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="eyebrow">Cyber-Physical Systems for Power & Smart Grids</div>
+    <h1>5-Bus Smart Grid Simulation</h1>
+    <p>End-to-end DC PF, PTDF/LODF, DCOPF, N-1 screening and preventive SCOPF pipeline.</p>
+    <div class="meta">
+      <div><span class="label">Author</span><span class="value">Surname Name</span></div>
+      <div><span class="label">Generated</span><span class="value">2026-05-30 11:35 UTC</span></div>
+      <div><span class="label">Seed</span><span class="value">31052026</span></div>
+      <div><span class="label">Solver</span><span class="value">HiGHS LP</span></div>
+    </div>
+  </section>
+
+  <section class="metrics">
+    <div class="metric"><span class="label">Base DCOPF Cost</span><span class="value">1860.00 USD/h</span></div>
+    <div class="metric"><span class="label">Worst Contingency</span><span class="value">L2</span></div>
+    <div class="metric"><span class="label">SCOPF Cost</span><span class="value">2370.00 USD/h</span></div>
+    <div class="metric"><span class="label">Security Premium</span><span class="value">510.00 USD/h</span></div>
+  </section>
+
+  <h2>Introduction</h2>
+  <p>This report studies a custom 5-bus lossless DC power-system model on a 100 MVA base.
+  The objective is to connect the main operational tools from the course in one
+  reproducible workflow: construction of the bus susceptance matrix, DC power flow,
+  PTDF and LODF sensitivity analysis, economic dispatch through DCOPF, N-1 contingency
+  screening, and preventive security-constrained redispatch. The network is small, but
+  it is large enough to show the central operating trade-off: the cheapest dispatch is
+  not necessarily secure after a credible line outage.</p>
+  <p>The cyber-physical interpretation is important for this project. A contingency is
+  not treated only as a random equipment failure; it can also represent an intentional
+  line trip caused by relay manipulation, breaker misoperation, or coordinated
+  cyber-physical action. For that reason, the report compares the normal base DCOPF
+  dispatch with a preventive SCOPF dispatch and quantifies the cost paid to reduce
+  exposure to the selected worst outage.</p>
+
+  <h2>1. Power-System Foundations</h2>
+  <div class="two-col">
+    <div>
+      <h3>Bus Angles</h3>
+      <table><thead><tr><th>Bus</th><th>Theta rad</th></tr></thead><tbody><tr><td>1</td><td>0.0440</td></tr><tr><td>2</td><td>-0.0288</td></tr><tr><td>3</td><td>0.0176</td></tr><tr><td>4</td><td>0.0000</td></tr><tr><td>5</td><td>-0.0503</td></tr></tbody></table>
+    </div>
+    <div>
+      <h3>Line-Flow Cross-Check</h3>
+      <table><thead><tr><th>Line</th><th>Direct MW</th><th>PTDF MW</th></tr></thead><tbody><tr><td>L1</td><td>77.4161</td><td>77.4161</td></tr><tr><td>L2</td><td>32.5839</td><td>32.5839</td></tr><tr><td>L3</td><td>-25.6049</td><td>-25.6049</td></tr><tr><td>L4</td><td>14.3951</td><td>14.3951</td></tr><tr><td>L5</td><td>46.9790</td><td>46.9790</td></tr><tr><td>L6</td><td>13.0210</td><td>13.0210</td></tr></tbody></table>
+    </div>
+  </div>
+  <p>Maximum DC PF vs PTDF flow error: <code>0.00000000 MW</code>.
+  Slack PTDF column equals zero: <code>True</code>.</p>
+  <h3>PTDF Matrix</h3>
+  <table><thead><tr><th></th><th>Bus 1</th><th>Bus 2</th><th>Bus 3</th><th>Bus 4</th><th>Bus 5</th></tr></thead><tbody><tr><td>L1</td><td>0.3626</td><td>-0.3850</td><td>-0.1550</td><td>0.0000</td><td>-0.1514</td></tr><tr><td>L2</td><td>0.6374</td><td>0.3850</td><td>0.1550</td><td>0.0000</td><td>0.1514</td></tr><tr><td>L3</td><td>0.1715</td><td>0.2909</td><td>-0.2855</td><td>0.0000</td><td>0.1145</td></tr><tr><td>L4</td><td>0.1715</td><td>0.2909</td><td>0.7145</td><td>0.0000</td><td>0.1145</td></tr><tr><td>L5</td><td>-0.1911</td><td>-0.3241</td><td>-0.1305</td><td>0.0000</td><td>-0.7341</td></tr><tr><td>L6</td><td>0.1911</td><td>0.3241</td><td>0.1305</td><td>0.0000</td><td>-0.2659</td></tr></tbody></table>
+
+  <h2>2. DCOPF And LMPs</h2>
+  <p>Base dispatch: <code>{1: 150.0, 2: 0.0, 3: 0.0}</code> MW.
+  Base LMPs: <code>['12.40', '12.40', '12.40', '12.40', '12.40']</code> USD/MWh.
+  Binding base lines: <code>[]</code>.</p>
+  <h3>Base DCOPF Line Flows</h3>
+  <table><thead><tr><th>Line</th><th>Flow MW</th><th>Rating MW</th><th>Loading %</th></tr></thead><tbody><tr><td>L1</td><td>98.12</td><td>100.00</td><td>98.12</td></tr><tr><td>L2</td><td>51.88</td><td>100.00</td><td>51.88</td></tr><tr><td>L3</td><td>-7.32</td><td>70.00</td><td>10.46</td></tr><tr><td>L4</td><td>-7.32</td><td>90.00</td><td>8.14</td></tr><tr><td>L5</td><td>44.56</td><td>80.00</td><td>55.70</td></tr><tr><td>L6</td><td>15.44</td><td>60.00</td><td>25.74</td></tr></tbody></table>
+  <p>With engineered congestion <code>L2 = 30 MW</code>, dispatch becomes
+  <code>{1: 104.64388760868304, 2: 45.35611239131693, 3: 0.0}</code> MW and cost is
+  <code>2322.63 USD/h</code>.
+  Congested LMPs are
+  <code>['12.40', '17.74', '22.60', '25.88', '22.68']</code> USD/MWh.
+  The L2 binding-constraint dual variable is
+  <code>21.14 USD/MWh</code>.
+  The highest-LMP buses are expensive; the lowest-LMP buses are cheap.</p>
+  <h3>Congested L2=30 MW Line Flows</h3>
+  <table><thead><tr><th>Line</th><th>Flow MW</th><th>Rating MW</th><th>Loading %</th></tr></thead><tbody><tr><td>L1</td><td>74.64</td><td>100.00</td><td>74.64</td></tr><tr><td>L2</td><td>30.00</td><td>30.00</td><td>100.00</td></tr><tr><td>L3</td><td>-28.05</td><td>70.00</td><td>40.08</td></tr><tr><td>L4</td><td>17.30</td><td>90.00</td><td>19.23</td></tr><tr><td>L5</td><td>47.30</td><td>80.00</td><td>59.13</td></tr><tr><td>L6</td><td>12.70</td><td>60.00</td><td>21.16</td></tr></tbody></table>
+
+  <h2 class="page-break">3. LODF And N-1 Screening</h2>
+  <p>Explicit LODF value <code>L_L3,L1 = -0.4730</code>.</p>
+  <p>All diagonal values satisfy <code>L_k,k = 1</code>: <code>True</code>.</p>
+  <h3>LODF Matrix</h3>
+  <table><thead><tr><th></th><th>L1</th><th>L2</th><th>L3</th><th>L4</th><th>L5</th><th>L6</th></tr></thead><tbody><tr><td>L1</td><td>1.0000</td><td>1.0000</td><td>-0.5429</td><td>-0.5429</td><td>0.5695</td><td>-0.5695</td></tr><tr><td>L2</td><td>1.0000</td><td>1.0000</td><td>0.5429</td><td>0.5429</td><td>-0.5695</td><td>0.5695</td></tr><tr><td>L3</td><td>-0.4730</td><td>0.4730</td><td>1.0000</td><td>-1.0000</td><td>-0.4305</td><td>0.4305</td></tr><tr><td>L4</td><td>-0.4730</td><td>0.4730</td><td>-1.0000</td><td>1.0000</td><td>-0.4305</td><td>0.4305</td></tr><tr><td>L5</td><td>0.5270</td><td>-0.5270</td><td>-0.4571</td><td>-0.4571</td><td>1.0000</td><td>1.0000</td></tr><tr><td>L6</td><td>-0.5270</td><td>0.5270</td><td>0.4571</td><td>0.4571</td><td>1.0000</td><td>1.0000</td></tr></tbody></table>
+  <h3>N-1 Contingency Table</h3>
+  <table><thead><tr><th>Outage</th><th>Max loading %</th><th>Worst line</th><th>Overloaded</th></tr></thead><tbody><tr><td>L1</td><td>150.00</td><td>L2</td><td>True</td></tr><tr><td>L2</td><td>150.00</td><td>L1</td><td>True</td></tr><tr><td>L3</td><td>102.10</td><td>L1</td><td>True</td></tr><tr><td>L4</td><td>102.10</td><td>L1</td><td>True</td></tr><tr><td>L5</td><td>123.50</td><td>L1</td><td>True</td></tr><tr><td>L6</td><td>89.32</td><td>L1</td><td>False</td></tr></tbody></table>
+  <h3>Worst Contingency LODF vs Direct Re-Solve</h3>
+  <table><thead><tr><th>Line</th><th>LODF MW</th><th>Direct MW</th><th>Abs error MW</th></tr></thead><tbody><tr><td>L1</td><td>150.000000</td><td>150.000000</td><td>0.000000</td></tr><tr><td>L3</td><td>17.217391</td><td>17.217391</td><td>0.000000</td></tr><tr><td>L4</td><td>17.217391</td><td>17.217391</td><td>0.000000</td></tr><tr><td>L5</td><td>17.217391</td><td>17.217391</td><td>0.000000</td></tr><tr><td>L6</td><td>42.782609</td><td>42.782609</td><td>0.000000</td></tr></tbody></table>
+  <p class="note">A plausible event is a relay misconfiguration or breaker operation that trips L2 during a coordinated cyber-physical incident.</p>
+
+  <h2>4. Security-Constrained DCOPF</h2>
+  <p>SCOPF enforced contingencies: <code>[2]</code>.
+  SCOPF LMPs: <code>['12.40', '22.60', '22.60', '22.60', '22.60']</code> USD/MWh.</p>
+  <table><thead><tr><th>Generator</th><th>Base DCOPF MW</th><th>SCOPF MW</th><th>Move MW</th></tr></thead><tbody><tr><td>G1</td><td>150.0000</td><td>100.0000</td><td>-50.0000</td></tr><tr><td>G2</td><td>0.0000</td><td>50.0000</td><td>50.0000</td></tr><tr><td>G3</td><td>0.0000</td><td>0.0000</td><td>0.0000</td></tr></tbody></table>
+  <h3>SCOPF Base-Case Line Flows</h3>
+  <table><thead><tr><th>Line</th><th>Flow MW</th><th>Rating MW</th><th>Loading %</th></tr></thead><tbody><tr><td>L1</td><td>72.24</td><td>100.00</td><td>72.24</td></tr><tr><td>L2</td><td>27.76</td><td>100.00</td><td>27.76</td></tr><tr><td>L3</td><td>-30.18</td><td>70.00</td><td>43.11</td></tr><tr><td>L4</td><td>19.82</td><td>90.00</td><td>22.03</td></tr><tr><td>L5</td><td>47.58</td><td>80.00</td><td>59.48</td></tr><tr><td>L6</td><td>12.42</td><td>60.00</td><td>20.69</td></tr></tbody></table>
+  <p>Cost of security: <strong>510.00 USD/h</strong>
+  (27.42% of base DCOPF cost). Post-contingency SCOPF max loading:
+  <strong>100.00%</strong>.</p>
+  <h3>SCOPF Post-Contingency Surviving-Line Loading</h3>
+  <table><thead><tr><th>Line</th><th>Post flow MW</th><th>Rating MW</th><th>Loading %</th><th>Overloaded</th></tr></thead><tbody><tr><td>L1</td><td>100.00</td><td>100.00</td><td>100.00</td><td>False</td></tr><tr><td>L3</td><td>-17.04</td><td>70.00</td><td>24.35</td><td>False</td></tr><tr><td>L4</td><td>32.96</td><td>90.00</td><td>36.62</td><td>False</td></tr><tr><td>L5</td><td>32.96</td><td>80.00</td><td>41.20</td><td>False</td></tr><tr><td>L6</td><td>27.04</td><td>60.00</td><td>45.07</td><td>False</td></tr></tbody></table>
+
+  <h2>5. Operating-State Analysis</h2>
+  <table><thead><tr><th>Dispatch</th><th>Scenario</th><th>Max loading %</th><th>Cost USD/h</th></tr></thead><tbody><tr><td>Base DCOPF</td><td>pre-contingency</td><td>98.12</td><td>1860.00</td></tr><tr><td>Base DCOPF</td><td>post-contingency L2</td><td>150.00</td><td>1860.00</td></tr><tr><td>SCOPF</td><td>pre-contingency</td><td>72.24</td><td>2370.00</td></tr><tr><td>SCOPF</td><td>post-contingency L2</td><td>100.00</td><td>2370.00</td></tr></tbody></table>
+  <img class="chart" src="operating_state_loading.png" alt="Operating-state loading chart">
+  <p>The base DCOPF is economical at 1860.00 USD/h and reaches 98.12% maximum loading before an outage, but under L2 it rises to 150.00% and is insecure. SCOPF costs 2370.00 USD/h, so it pays Delta C = 510.00 USD/h (27.42%) every hour. In exchange, the selected post-contingency loading is capped at 100.00% instead of exposing the system to the overload.</p>
+  <p>The Ukraine 2015 power-grid attack is a documented example where attackers used remote access to distribution-control environments, opened breakers, disrupted operator visibility, and delayed restoration. The later Industroyer/CrashOverride incident in 2016 further showed that grid-specific malware can target substation switching operations rather than only business IT. In this setting, a line outage is not just a low-probability random fault; it can be the adversary's chosen action. That changes the dispatch decision: the operator may rationally accept the SCOPF premium when the insecure base dispatch creates an obvious post-contingency overload target.</p>
+
+  <h2>6. Reproducibility</h2>
+  <p>The numerical output is generated by <code>scripts/run_project.py</code>. Toolchain:
+  Python 3.12.13, NumPy 2.4.6, SciPy 1.17.1,
+  solver <code>scipy.optimize.linprog(method='highs')</code>.</p>
+  <p>Use of generative AI tools is disclosed for implementation assistance. Numerical values are produced by the project code.</p>
+
+  <h2>Conclusion</h2>
+  <p>The results show the expected tension between economic efficiency and preventive
+  security. In the base DCOPF, the system chooses the cheapest available generation and
+  reaches a total operating cost of 1860.00
+  USD/h. This dispatch is valid in the pre-contingency network, but the N-1 screening
+  reveals that the outage of L2 would create a
+  maximum surviving-line loading of 150.00%.
+  In other words, the base dispatch is economically attractive but operationally exposed
+  once the worst single-line contingency is applied.</p>
+  <p>The SCOPF redispatch moves generation away from the purely economic optimum and
+  raises the operating cost to 2370.00 USD/h.
+  The resulting cost of security is therefore 510.00
+  USD/h, or 27.42% of the base DCOPF cost. That premium
+  is not wasted capacity; it buys a measurable resilience property. Under the selected
+  contingency, the SCOPF dispatch keeps all surviving monitored lines within their
+  ratings, with the maximum loading reduced to
+  100.00%.</p>
+  <p>From the cyber-physical perspective, this is the key lesson of the exercise. If line
+  outages are only random failures, an operator might be tempted to run the cheaper base
+  dispatch and accept the risk. If outages can be adversarial, the exposed post-contingency
+  overload becomes a target that can be deliberately selected. The preventive SCOPF case
+  gives the operator a concrete price for reducing that exposure, making the security
+  decision explicit rather than implicit.</p>
+</body>
+</html>

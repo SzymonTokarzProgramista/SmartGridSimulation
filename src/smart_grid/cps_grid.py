@@ -52,6 +52,7 @@ class DcopfResult:
     total_cost_usd_per_h: float
     lmps_usd_per_mwh: list[float]
     binding_lines: list[str]
+    line_shadow_prices_usd_per_mwh: dict[str, float]
     raw_success: bool
     raw_message: str
 
@@ -266,6 +267,18 @@ def _lmps_by_finite_difference(
     return lmps
 
 
+def _line_shadow_prices(branches: list[Branch], raw: object) -> dict[str, float]:
+    prices: dict[str, float] = {}
+    marginals = getattr(getattr(raw, "ineqlin", None), "marginals", None)
+    if marginals is None:
+        return {branch.name: 0.0 for branch in branches}
+    for idx, branch in enumerate(branches):
+        upper = float(marginals[2 * idx])
+        lower = float(marginals[2 * idx + 1])
+        prices[branch.name] = max(0.0, -upper, -lower)
+    return prices
+
+
 def solve_dcopf(
     buses: list[Bus],
     branches: list[Branch],
@@ -294,6 +307,7 @@ def solve_dcopf(
         total_cost_usd_per_h=cost,
         lmps_usd_per_mwh=lmps,
         binding_lines=binding,
+        line_shadow_prices_usd_per_mwh=_line_shadow_prices(branches, raw),
         raw_success=bool(raw.success),
         raw_message=str(raw.message),
     )
@@ -387,6 +401,7 @@ def solve_scopf(
         total_cost_usd_per_h=cost,
         lmps_usd_per_mwh=lmps,
         binding_lines=binding,
+        line_shadow_prices_usd_per_mwh=_line_shadow_prices(branches, raw),
         raw_success=bool(raw.success),
         raw_message=str(raw.message),
     )
@@ -445,6 +460,36 @@ def full_project_results(
     scopf_worst_row = next(
         row for row in scopf_screen if int(row["outage_index"]) == worst_index
     )
+    direct_crosscheck = direct_outage_flows(branches, dcopf.injections_mw, worst_index)
+    lodf_crosscheck = worst["post_flows_mw"]
+    crosscheck_rows = []
+    for branch, lodf_flow, direct_flow in zip(branches, lodf_crosscheck, direct_crosscheck):
+        if branch.idx == worst_index:
+            continue
+        crosscheck_rows.append(
+            {
+                "line": branch.name,
+                "lodf_flow_mw": lodf_flow,
+                "direct_resolve_flow_mw": direct_flow,
+                "abs_error_mw": abs(float(lodf_flow) - float(direct_flow)),
+            }
+        )
+
+    scopf_post_loading_rows = []
+    for branch, flow in zip(branches, scopf_worst_row["post_flows_mw"]):
+        if branch.idx == worst_index:
+            continue
+        loading = abs(float(flow)) / branch.rating_mw * 100.0
+        scopf_post_loading_rows.append(
+            {
+                "line": branch.name,
+                "post_flow_mw": flow,
+                "rating_mw": branch.rating_mw,
+                "loading_pct": loading,
+                "overloaded": loading > 100.0 + 1e-9,
+            }
+        )
+
     cost_delta = scopf.total_cost_usd_per_h - dcopf.total_cost_usd_per_h
     base_pre_loading = max(abs(f) / r * 100.0 for f, r in zip(dcopf.line_flows_mw, ratings))
 
@@ -481,11 +526,11 @@ def full_project_results(
         "phase3": {
             "lodf": LODF.tolist(),
             "lodf_l3_l1": float(LODF[2, 0]),
+            "lodf_diagonal_all_one": bool(np.allclose(np.diag(LODF), 1.0)),
             "screening": screening,
             "worst_contingency": worst,
-            "direct_outage_crosscheck_mw": direct_outage_flows(
-                branches, dcopf.injections_mw, worst_index
-            ),
+            "direct_outage_crosscheck_mw": direct_crosscheck,
+            "lodf_direct_crosscheck": crosscheck_rows,
             "event_sentence": (
                 "A plausible event is a relay misconfiguration or breaker operation "
                 f"that trips {worst['outage']} during a coordinated cyber-physical incident."
@@ -497,6 +542,7 @@ def full_project_results(
             "cost_of_security_usd_per_h": cost_delta,
             "cost_of_security_pct": cost_delta / dcopf.total_cost_usd_per_h * 100.0,
             "scopf_post_contingency": scopf_worst_row,
+            "scopf_post_contingency_loadings": scopf_post_loading_rows,
         },
         "phase5": {
             "operating_state_table": [
@@ -528,15 +574,27 @@ def full_project_results(
                 },
             ],
             "interpretation": (
-                "SCOPF pays the preventive cost of security every hour, but removes "
-                "the overload exposure for the selected worst single-line outage."
+                f"The base DCOPF is economical at {dcopf.total_cost_usd_per_h:.2f} USD/h "
+                f"and reaches {base_pre_loading:.2f}% maximum loading before an outage, "
+                f"but under {worst['outage']} it rises to {worst['max_loading_pct']:.2f}% "
+                f"and is insecure. SCOPF costs {scopf.total_cost_usd_per_h:.2f} USD/h, "
+                f"so it pays Delta C = {cost_delta:.2f} USD/h "
+                f"({cost_delta / dcopf.total_cost_usd_per_h * 100.0:.2f}%) every hour. "
+                f"In exchange, the selected post-contingency loading is capped at "
+                f"{scopf_worst_row['max_loading_pct']:.2f}% instead of exposing the system "
+                "to the overload."
             ),
             "cyber_physical_reflection": (
-                "The Ukraine 2015 power-grid attack showed that adversaries can use "
-                "cyber access to create physical switching consequences, not merely "
-                "data loss. If a line trip can be intentional, the operator should "
-                "treat high-impact contingencies as strategic threats and may justify "
-                "SCOPF even when the random outage probability is low."
+                "The Ukraine 2015 power-grid attack is a documented example where "
+                "attackers used remote access to distribution-control environments, "
+                "opened breakers, disrupted operator visibility, and delayed restoration. "
+                "The later Industroyer/CrashOverride incident in 2016 further showed that "
+                "grid-specific malware can target substation switching operations rather "
+                "than only business IT. In this setting, a line outage is not just a "
+                "low-probability random fault; it can be the adversary's chosen action. "
+                "That changes the dispatch decision: the operator may rationally accept "
+                "the SCOPF premium when the insecure base dispatch creates an obvious "
+                "post-contingency overload target."
             ),
         },
     }

@@ -73,6 +73,26 @@ def build_markdown(results: dict[str, Any]) -> str:
         [branch["name"], phase1["line_flows_mw"][idx], phase1["ptdf_flow_crosscheck_mw"][idx]]
         for idx, branch in enumerate(branches)
     ]
+    base_dcopf_flow_rows = [
+        [
+            branch["name"],
+            phase2["base_dcopf"]["line_flows_mw"][idx],
+            branch["rating_mw"],
+            abs(phase2["base_dcopf"]["line_flows_mw"][idx]) / branch["rating_mw"] * 100.0,
+        ]
+        for idx, branch in enumerate(branches)
+    ]
+    congested_flow_rows = [
+        [
+            branch["name"],
+            phase2["congested_l2_30"]["line_flows_mw"][idx],
+            branch["rating_mw"] if branch["name"] != "L2" else 30.0,
+            abs(phase2["congested_l2_30"]["line_flows_mw"][idx])
+            / (branch["rating_mw"] if branch["name"] != "L2" else 30.0)
+            * 100.0,
+        ]
+        for idx, branch in enumerate(branches)
+    ]
     screening_rows = [
         [
             row["outage"],
@@ -82,6 +102,15 @@ def build_markdown(results: dict[str, Any]) -> str:
         ]
         for row in phase3["screening"]
     ]
+    lodf_crosscheck_rows = [
+        [
+            row["line"],
+            row["lodf_flow_mw"],
+            row["direct_resolve_flow_mw"],
+            row["abs_error_mw"],
+        ]
+        for row in phase3["lodf_direct_crosscheck"]
+    ]
     dispatch_rows = [
         [
             f"G{gid}",
@@ -90,6 +119,25 @@ def build_markdown(results: dict[str, Any]) -> str:
             phase4["scopf"]["dispatch_mw"][gid] - phase2["base_dcopf"]["dispatch_mw"][gid],
         ]
         for gid in phase2["base_dcopf"]["dispatch_mw"]
+    ]
+    scopf_flow_rows = [
+        [
+            branch["name"],
+            phase4["scopf"]["line_flows_mw"][idx],
+            branch["rating_mw"],
+            abs(phase4["scopf"]["line_flows_mw"][idx]) / branch["rating_mw"] * 100.0,
+        ]
+        for idx, branch in enumerate(branches)
+    ]
+    scopf_post_rows = [
+        [
+            row["line"],
+            row["post_flow_mw"],
+            row["rating_mw"],
+            row["loading_pct"],
+            row["overloaded"],
+        ]
+        for row in phase4["scopf_post_contingency_loadings"]
     ]
     state_rows = [
         [
@@ -143,9 +191,22 @@ Base dispatch: `{phase2["base_dcopf"]["dispatch_mw"]}` MW.
 Base LMPs: `{[_fmt(v, 2) for v in phase2["base_dcopf"]["lmps_usd_per_mwh"]]}` USD/MWh.  
 Binding base lines: `{phase2["base_dcopf"]["binding_lines"]}`.
 
+Base DCOPF line flows:
+
+{_table(["Line", "Flow MW", "Rating MW", "Loading %"], base_dcopf_flow_rows, digits=2)}
+
 With engineered congestion `L2 = 30 MW`, cost is
 `{phase2["congested_l2_30"]["total_cost_usd_per_h"]:.2f}` USD/h and dispatch is
 `{phase2["congested_l2_30"]["dispatch_mw"]}` MW.
+Congested LMPs are `{[_fmt(v, 2) for v in phase2["congested_l2_30"]["lmps_usd_per_mwh"]]}` USD/MWh.
+The dual variable on the binding L2 constraint is
+`{phase2["congested_l2_30"]["line_shadow_prices_usd_per_mwh"]["L2"]:.2f}` USD/MWh.
+The expensive buses are those with the highest LMP; the cheap buses are those with the
+lowest LMP.
+
+Congested-case line flows:
+
+{_table(["Line", "Flow MW", "Rating MW", "Loading %"], congested_flow_rows, digits=2)}
 
 ## Phase 3: LODF And N-1 Screening
 
@@ -154,6 +215,7 @@ LODF matrix:
 {_matrix_rows(phase3["lodf"], [b["name"] for b in branches], [b["name"] for b in branches])}
 
 Explicit LODF value `L_L3,L1 = {phase3["lodf_l3_l1"]:.4f}`.
+All diagonal values `L_k,k = 1`: `{phase3["lodf_diagonal_all_one"]}`.
 
 Contingency table:
 
@@ -162,6 +224,10 @@ Contingency table:
 Worst contingency: `{phase3["worst_contingency"]["outage"]}`.
 
 Physical/adversarial event: {phase3["event_sentence"]}
+
+Worst-contingency LODF vs direct re-solve cross-check:
+
+{_table(["Line", "LODF MW", "Direct MW", "Abs error MW"], lodf_crosscheck_rows, digits=6)}
 
 ## Phase 4: SCOPF
 
@@ -177,8 +243,16 @@ Dispatch comparison:
 Cost of security: `{phase4["cost_of_security_usd_per_h"]:.2f}` USD/h
 (`{phase4["cost_of_security_pct"]:.2f}%` of base DCOPF cost).
 
+SCOPF base-case line flows:
+
+{_table(["Line", "Flow MW", "Rating MW", "Loading %"], scopf_flow_rows, digits=2)}
+
 SCOPF post-contingency max loading under the selected outage:
 `{phase4["scopf_post_contingency"]["max_loading_pct"]:.2f}%`.
+
+SCOPF post-contingency surviving-line loading:
+
+{_table(["Line", "Post flow MW", "Rating MW", "Loading %", "Overloaded"], scopf_post_rows, digits=2)}
 
 ## Phase 5: Operating-State Analysis
 
@@ -223,9 +297,38 @@ def build_html(results: dict[str, Any], chart_path: Path) -> str:
         [branch["name"], phase1["line_flows_mw"][idx], phase1["ptdf_flow_crosscheck_mw"][idx]]
         for idx, branch in enumerate(branches)
     ]
+    base_dcopf_flow_rows = [
+        [
+            branch["name"],
+            phase2["base_dcopf"]["line_flows_mw"][idx],
+            branch["rating_mw"],
+            abs(phase2["base_dcopf"]["line_flows_mw"][idx]) / branch["rating_mw"] * 100.0,
+        ]
+        for idx, branch in enumerate(branches)
+    ]
+    congested_flow_rows = [
+        [
+            branch["name"],
+            phase2["congested_l2_30"]["line_flows_mw"][idx],
+            branch["rating_mw"] if branch["name"] != "L2" else 30.0,
+            abs(phase2["congested_l2_30"]["line_flows_mw"][idx])
+            / (branch["rating_mw"] if branch["name"] != "L2" else 30.0)
+            * 100.0,
+        ]
+        for idx, branch in enumerate(branches)
+    ]
     screening_rows = [
         [row["outage"], row["max_loading_pct"], row["worst_line"], row["overloaded"]]
         for row in phase3["screening"]
+    ]
+    lodf_crosscheck_rows = [
+        [
+            row["line"],
+            row["lodf_flow_mw"],
+            row["direct_resolve_flow_mw"],
+            row["abs_error_mw"],
+        ]
+        for row in phase3["lodf_direct_crosscheck"]
     ]
     dispatch_rows = [
         [
@@ -235,6 +338,25 @@ def build_html(results: dict[str, Any], chart_path: Path) -> str:
             phase4["scopf"]["dispatch_mw"][gid] - phase2["base_dcopf"]["dispatch_mw"][gid],
         ]
         for gid in phase2["base_dcopf"]["dispatch_mw"]
+    ]
+    scopf_flow_rows = [
+        [
+            branch["name"],
+            phase4["scopf"]["line_flows_mw"][idx],
+            branch["rating_mw"],
+            abs(phase4["scopf"]["line_flows_mw"][idx]) / branch["rating_mw"] * 100.0,
+        ]
+        for idx, branch in enumerate(branches)
+    ]
+    scopf_post_rows = [
+        [
+            row["line"],
+            row["post_flow_mw"],
+            row["rating_mw"],
+            row["loading_pct"],
+            row["overloaded"],
+        ]
+        for row in phase4["scopf_post_contingency_loadings"]
     ]
     state_rows = [
         [row["dispatch"], row["scenario"], row["max_loading_pct"], row["cost_usd_per_h"]]
@@ -348,6 +470,7 @@ def build_html(results: dict[str, Any], chart_path: Path) -> str:
       grid-template-columns: 1fr 1fr;
       gap: 12px;
     }}
+    .page-break {{ break-before: page; }}
     .note {{
       background: #fff7ed;
       border-left: 4px solid #e76f51;
@@ -387,6 +510,21 @@ def build_html(results: dict[str, Any], chart_path: Path) -> str:
     <div class="metric"><span class="label">Security Premium</span><span class="value">{phase4["cost_of_security_usd_per_h"]:.2f} USD/h</span></div>
   </section>
 
+  <h2>Introduction</h2>
+  <p>This report studies a custom 5-bus lossless DC power-system model on a 100 MVA base.
+  The objective is to connect the main operational tools from the course in one
+  reproducible workflow: construction of the bus susceptance matrix, DC power flow,
+  PTDF and LODF sensitivity analysis, economic dispatch through DCOPF, N-1 contingency
+  screening, and preventive security-constrained redispatch. The network is small, but
+  it is large enough to show the central operating trade-off: the cheapest dispatch is
+  not necessarily secure after a credible line outage.</p>
+  <p>The cyber-physical interpretation is important for this project. A contingency is
+  not treated only as a random equipment failure; it can also represent an intentional
+  line trip caused by relay manipulation, breaker misoperation, or coordinated
+  cyber-physical action. For that reason, the report compares the normal base DCOPF
+  dispatch with a preventive SCOPF dispatch and quantifies the cost paid to reduce
+  exposure to the selected worst outage.</p>
+
   <h2>1. Power-System Foundations</h2>
   <div class="two-col">
     <div>
@@ -407,22 +545,41 @@ def build_html(results: dict[str, Any], chart_path: Path) -> str:
   <p>Base dispatch: <code>{phase2["base_dcopf"]["dispatch_mw"]}</code> MW.
   Base LMPs: <code>{[_fmt(v, 2) for v in phase2["base_dcopf"]["lmps_usd_per_mwh"]]}</code> USD/MWh.
   Binding base lines: <code>{phase2["base_dcopf"]["binding_lines"]}</code>.</p>
+  <h3>Base DCOPF Line Flows</h3>
+  {_html_table(["Line", "Flow MW", "Rating MW", "Loading %"], base_dcopf_flow_rows, digits=2)}
   <p>With engineered congestion <code>L2 = 30 MW</code>, dispatch becomes
   <code>{phase2["congested_l2_30"]["dispatch_mw"]}</code> MW and cost is
-  <code>{phase2["congested_l2_30"]["total_cost_usd_per_h"]:.2f} USD/h</code>.</p>
+  <code>{phase2["congested_l2_30"]["total_cost_usd_per_h"]:.2f} USD/h</code>.
+  Congested LMPs are
+  <code>{[_fmt(v, 2) for v in phase2["congested_l2_30"]["lmps_usd_per_mwh"]]}</code> USD/MWh.
+  The L2 binding-constraint dual variable is
+  <code>{phase2["congested_l2_30"]["line_shadow_prices_usd_per_mwh"]["L2"]:.2f} USD/MWh</code>.
+  The highest-LMP buses are expensive; the lowest-LMP buses are cheap.</p>
+  <h3>Congested L2=30 MW Line Flows</h3>
+  {_html_table(["Line", "Flow MW", "Rating MW", "Loading %"], congested_flow_rows, digits=2)}
 
-  <h2>3. LODF And N-1 Screening</h2>
+  <h2 class="page-break">3. LODF And N-1 Screening</h2>
   <p>Explicit LODF value <code>L_L3,L1 = {phase3["lodf_l3_l1"]:.4f}</code>.</p>
+  <p>All diagonal values satisfy <code>L_k,k = 1</code>: <code>{phase3["lodf_diagonal_all_one"]}</code>.</p>
+  <h3>LODF Matrix</h3>
+  {_html_matrix(phase3["lodf"], [b["name"] for b in branches], [b["name"] for b in branches])}
+  <h3>N-1 Contingency Table</h3>
   {_html_table(["Outage", "Max loading %", "Worst line", "Overloaded"], screening_rows, digits=2)}
+  <h3>Worst Contingency LODF vs Direct Re-Solve</h3>
+  {_html_table(["Line", "LODF MW", "Direct MW", "Abs error MW"], lodf_crosscheck_rows, digits=6)}
   <p class="note">{phase3["event_sentence"]}</p>
 
   <h2>4. Security-Constrained DCOPF</h2>
   <p>SCOPF enforced contingencies: <code>{phase4["contingencies"]}</code>.
   SCOPF LMPs: <code>{[_fmt(v, 2) for v in phase4["scopf"]["lmps_usd_per_mwh"]]}</code> USD/MWh.</p>
   {_html_table(["Generator", "Base DCOPF MW", "SCOPF MW", "Move MW"], dispatch_rows)}
+  <h3>SCOPF Base-Case Line Flows</h3>
+  {_html_table(["Line", "Flow MW", "Rating MW", "Loading %"], scopf_flow_rows, digits=2)}
   <p>Cost of security: <strong>{phase4["cost_of_security_usd_per_h"]:.2f} USD/h</strong>
   ({phase4["cost_of_security_pct"]:.2f}% of base DCOPF cost). Post-contingency SCOPF max loading:
   <strong>{phase4["scopf_post_contingency"]["max_loading_pct"]:.2f}%</strong>.</p>
+  <h3>SCOPF Post-Contingency Surviving-Line Loading</h3>
+  {_html_table(["Line", "Post flow MW", "Rating MW", "Loading %", "Overloaded"], scopf_post_rows, digits=2)}
 
   <h2>5. Operating-State Analysis</h2>
   {_html_table(["Dispatch", "Scenario", "Max loading %", "Cost USD/h"], state_rows, digits=2)}
@@ -435,6 +592,30 @@ def build_html(results: dict[str, Any], chart_path: Path) -> str:
   Python {sys.version.split()[0]}, NumPy {np.__version__}, SciPy {scipy.__version__},
   solver <code>{results["metadata"]["solver"]}</code>.</p>
   <p>Use of generative AI tools is disclosed for implementation assistance. Numerical values are produced by the project code.</p>
+
+  <h2>Conclusion</h2>
+  <p>The results show the expected tension between economic efficiency and preventive
+  security. In the base DCOPF, the system chooses the cheapest available generation and
+  reaches a total operating cost of {phase2["base_dcopf"]["total_cost_usd_per_h"]:.2f}
+  USD/h. This dispatch is valid in the pre-contingency network, but the N-1 screening
+  reveals that the outage of {phase3["worst_contingency"]["outage"]} would create a
+  maximum surviving-line loading of {phase3["worst_contingency"]["max_loading_pct"]:.2f}%.
+  In other words, the base dispatch is economically attractive but operationally exposed
+  once the worst single-line contingency is applied.</p>
+  <p>The SCOPF redispatch moves generation away from the purely economic optimum and
+  raises the operating cost to {phase4["scopf"]["total_cost_usd_per_h"]:.2f} USD/h.
+  The resulting cost of security is therefore {phase4["cost_of_security_usd_per_h"]:.2f}
+  USD/h, or {phase4["cost_of_security_pct"]:.2f}% of the base DCOPF cost. That premium
+  is not wasted capacity; it buys a measurable resilience property. Under the selected
+  contingency, the SCOPF dispatch keeps all surviving monitored lines within their
+  ratings, with the maximum loading reduced to
+  {phase4["scopf_post_contingency"]["max_loading_pct"]:.2f}%.</p>
+  <p>From the cyber-physical perspective, this is the key lesson of the exercise. If line
+  outages are only random failures, an operator might be tempted to run the cheaper base
+  dispatch and accept the risk. If outages can be adversarial, the exposed post-contingency
+  overload becomes a target that can be deliberately selected. The preventive SCOPF case
+  gives the operator a concrete price for reducing that exposure, making the security
+  decision explicit rather than implicit.</p>
 </body>
 </html>
 """
@@ -458,6 +639,13 @@ def write_pdf(markdown: str, chart_path: Path, output_path: Path) -> None:
             fig.text(0.08, 0.95, "\n".join(page_lines), va="top", family="monospace", fontsize=8)
             pdf.savefig(fig)
             plt.close(fig)
+        if chart_path.exists():
+            image = plt.imread(chart_path)
+            fig = plt.figure(figsize=(11.69, 8.27))
+            plt.imshow(image)
+            plt.axis("off")
+            pdf.savefig(fig)
+            plt.close(fig)
 
 
 def write_styled_pdf(html: str, html_path: Path, pdf_path: Path) -> None:
@@ -468,13 +656,6 @@ def write_styled_pdf(html: str, html_path: Path, pdf_path: Path) -> None:
         write_pdf(html, html_path.with_name("operating_state_loading.png"), pdf_path)
         return
     HTML(filename=str(html_path)).write_pdf(str(pdf_path))
-        if chart_path.exists():
-            image = plt.imread(chart_path)
-            fig = plt.figure(figsize=(11.69, 8.27))
-            plt.imshow(image)
-            plt.axis("off")
-            pdf.savefig(fig)
-            plt.close(fig)
 
 
 def print_summary(results: dict[str, Any]) -> None:
